@@ -1,23 +1,40 @@
 # TradingAgents Web UI
 
-A FastAPI web interface for [TradingAgents](https://github.com/TauricResearch/TradingAgents) that streams live agent updates via Server-Sent Events and browses past analyses.
+> **This is only a UI layer.** All of the multi-agent trading analysis is done by
+> [TradingAgents](https://github.com/TauricResearch/TradingAgents) from Tauric
+> Research, which is a separate project with its own authors and its own
+> license (Apache 2.0). This repo contains none of that code. It adds a small
+> FastAPI backend and single-page frontend that run TradingAgents jobs and show
+> the results.
+
+## What this adds
+- **Live progress:** a FastAPI backend (`web/app.py`) runs an analysis job in a
+  background thread and streams agent updates to the browser over Server-Sent
+  Events. A replay buffer lets a reconnecting client resume without losing events.
+- **Report browser:** lists past analyses and renders them (parsing both the
+  Markdown and JSON report formats TradingAgents produces).
+- **Price charts and ticker info:** endpoints for chart data and basic ticker
+  details, plus a rough per-run cost estimate in the frontend.
+- **A Claude Code hook:** `scripts/guard-server-restart.sh` blocks shell commands
+  that would kill the server while an analysis is running.
 
 ## What's included
+```
+web/app.py                   # FastAPI backend (job runner, SSE, report parsing)
+web/static/index.html        # single-page frontend
+web/static/marked.min.js     # bundled Markdown renderer
+scripts/guard-server-restart.sh
+main.py                      # small entry point that loads .env and runs the upstream graph
+WEBUI_SPEC.md                # spec for the UI, detailed enough to rebuild it from scratch
+```
 
-```
-2026-tradingagents-ui/
-├── web/
-│   ├── app.py              # FastAPI backend
-│   └── static/
-│       ├── index.html      # Single-page frontend
-│       └── marked.min.js   # Bundled markdown renderer
-├── scripts/
-│   └── guard-server-restart.sh   # Claude Code hook — blocks server kill during active jobs
-├── memory/
-│   └── trading_memory.md   # Agent memory log (persists across runs)
-├── main.py                 # Entry point with .env loading
-└── WEBUI_SPEC.md           # Full spec — hand this to an AI to rebuild the UI from scratch
-```
+## Not financial advice
+TradingAgents is a research framework. Nothing here is investment advice, and
+this UI does not place trades.
+
+## Security
+There is no authentication. Run it on localhost only (the command below does),
+because the server uses your LLM API keys to run jobs.
 
 ## Prerequisites
 
@@ -46,10 +63,11 @@ uv pip install fastapi uvicorn[standard] mistune python-dotenv
 
 ### 3. Copy our web UI layer into the repo
 
-From this folder (`2026-tradingagents-ui/`):
+From this repo:
 
 ```bash
-cp -r web/ scripts/ memory/ main.py /path/to/TradingAgents/
+mkdir -p memory
+cp -r web/ scripts/ main.py /path/to/TradingAgents/
 ```
 
 ### 4. Configure `.env`
@@ -67,14 +85,14 @@ OPENAI_API_KEY=sk-...
 GOOGLE_API_KEY=...
 XAI_API_KEY=...
 
-# Point memory log to the repo-local file we copied in step 3
+# Keep the memory log inside the project (create ./memory first)
 TRADINGAGENTS_MEMORY_LOG_PATH=./memory/trading_memory.md
 ```
 
 ### 5. Run
 
 ```bash
-.venv/bin/uvicorn web.app:app --host 0.0.0.0 --port 8000
+.venv/bin/uvicorn web.app:app --host 127.0.0.1 --port 8000
 ```
 
 Open [http://localhost:8000](http://localhost:8000).
@@ -104,7 +122,7 @@ Reddit and StockTwits require no API key.
 
 | Path | Purpose |
 |------|---------|
-| `memory/trading_memory.md` | Agent memory — set via `TRADINGAGENTS_MEMORY_LOG_PATH` |
+| `memory/trading_memory.md` | Agent memory, set via `TRADINGAGENTS_MEMORY_LOG_PATH` (created at runtime) |
 | `~/.tradingagents/logs/` | Analysis reports — auto-created on first run |
 | `~/.tradingagents/cache/` | Data cache — auto-created |
 
@@ -126,3 +144,8 @@ Reddit and StockTwits require no API key.
   }
 }
 ```
+
+## License
+
+MIT, covering only the UI code in this repository. The TradingAgents framework
+it wraps is separate work by Tauric Research under its own license (Apache 2.0).
